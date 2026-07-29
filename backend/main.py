@@ -71,6 +71,16 @@ async def get_db():
 async def lifespan(app: FastAPI):
     global pool
     pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+    # 自动初始化数据库（幂等，已有表不会重复创建）
+    try:
+        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+        if os.path.exists(schema_path):
+            async with pool.acquire() as conn:
+                with open(schema_path) as f:
+                    await conn.execute(f.read())
+            print("✅ 数据库 Schema 已就绪")
+    except Exception as e:
+        print(f"⚠️ Schema 初始化跳过: {e}")
     print("🚀 Personal OS Backend started")
     yield
     await pool.close()
