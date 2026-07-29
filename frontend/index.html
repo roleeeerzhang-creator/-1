@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Personal OS">
+<meta name="theme-color" content="#ec4899">
+<link rel="manifest" href="/app/manifest.json">
+<link rel="apple-touch-icon" href="/app/icon-192.png">
+<title>Personal OS — 人生操作系统</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+:root {
+  --bg: #fdf2f8; --card: #ffffff; --primary: #ec4899; --primary-light: #f472b6;
+  --soft: #fbcfe8; --border: #fce7f3; --success: #10b981; --warning: #f59e0b;
+  --danger: #ef4444; --text: #1e293b; --text-secondary: #64748b;
+  --shadow: 0 1px 3px rgba(236,72,153,0.08), 0 1px 2px rgba(236,72,153,0.06);
+  --shadow-lg: 0 4px 16px rgba(236,72,153,0.12);
+  --radius: 14px; --radius-sm: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:220px;background:var(--card);border-right:1px solid var(--border);padding:20px 16px;z-index:100;display:flex;flex-direction:column;transition:transform .3s}
+.sidebar-logo{font-size:20px;font-weight:800;color:var(--primary);margin-bottom:30px;display:flex;align-items:center;gap:8px}
+.sidebar-logo span{font-size:13px;color:var(--text-secondary);font-weight:400}
+.sidebar-nav{display:flex;flex-direction:column;gap:4px;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);font-size:14px;color:var(--text-secondary);cursor:pointer;transition:all .15s;text-decoration:none;border:none;background:none;text-align:left}
+.nav-item:hover{background:var(--soft);color:var(--primary)}
+.nav-item.active{background:var(--soft);color:var(--primary);font-weight:600}
+.sidebar-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--border)}
+.user-info{display:flex;align-items:center;gap:10px}
+.user-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700}
+.user-name{font-size:13px;font-weight:600}.user-role{font-size:11px;color:var(--text-secondary)}
+.main{margin-left:220px;padding:24px 28px;min-height:100vh}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header-left h1{font-size:22px;font-weight:800}
+.header-left .date{font-size:13px;color:var(--text-secondary);margin-top:2px}
+.header-right{display:flex;align-items:center;gap:12px}
+.notif-badge{background:var(--primary);color:#fff;font-size:11px;padding:5px 12px;border-radius:20px;font-weight:600;cursor:pointer;border:none}
+.search-box{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:7px 16px;box-shadow:var(--shadow)}
+.search-box input{border:none;outline:none;font-size:13px;width:180px;background:transparent;color:var(--text)}
+.search-box input::placeholder{color:#cbd5e1}
+.top-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);border:1px solid var(--border);cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.stat-card:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.stat-card .icon{font-size:24px;margin-bottom:8px}
+.stat-card .label{font-size:12px;color:var(--text-secondary);margin-bottom:4px}
+.stat-card .value{font-size:28px;font-weight:800}
+.stat-card .sub{font-size:11px;margin-top:4px}
+.stat-card .sub.up{color:var(--success)}.stat-card .sub.down{color:var(--danger)}
+.stat-card::after{content:'';position:absolute;top:-24px;right:-24px;width:70px;height:70px;border-radius:50%;background:var(--soft);opacity:.3}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px}
+.chart-row-3{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px}
+.panel{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.panel h3{font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.panel-full{grid-column:1/-1}
+.chart{width:100%;height:320px}
+.chart-sm{width:100%;height:280px}
+.chart-lg{width:100%;height:400px}
+.task-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.task-item:last-child{border-bottom:none}
+.task-check{width:22px;height:22px;border-radius:50%;border:2px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:all .2s;flex-shrink:0}
+.task-check:hover{border-color:var(--primary)}.task-check.done{background:var(--success);border-color:var(--success);color:#fff}
+.task-text{font-size:14px}.task-text.done{text-decoration:line-through;color:var(--text-secondary)}
+.task-tag{font-size:10px;padding:2px 8px;border-radius:10px;margin-left:auto;white-space:nowrap;font-weight:500}
+.tag-goal{background:#dbeafe;color:#1d4ed8}.tag-grow{background:#dcfce7;color:#15803d}
+.tag-fin{background:#fee2e2;color:#b91c1c}.tag-health{background:#cffafe;color:#0e7490}
+.insight-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.insight-item:last-child{border-bottom:none}
+.insight-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.insight-dot.positive{background:var(--success)}.insight-dot.warning{background:var(--warning)}.insight-dot.danger{background:var(--danger)}
+.insight-content{font-size:13px;line-height:1.5;flex:1}
+.goal-card{background:var(--card);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:14px}
+.goal-card h4{font-size:15px;margin-bottom:6px}
+.goal-card .meta{font-size:11px;color:var(--text-secondary);margin-bottom:10px;display:flex;gap:16px}
+.goal-card .kr-list{display:flex;flex-direction:column;gap:6px}
+.goal-card .kr-item{display:flex;align-items:center;gap:8px;font-size:12px}
+.goal-card .kr-bar{flex:1;height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.goal-card .kr-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--primary),var(--primary-light))}
+.goal-card .kr-pct{font-weight:600;color:var(--primary);width:40px;text-align:right}
+.note-card{background:var(--card);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:10px;cursor:pointer;transition:.2s}
+.note-card:hover{box-shadow:var(--shadow-lg)}
+.note-card h4{font-size:14px;margin-bottom:4px}
+.note-card .excerpt{font-size:12px;color:var(--text-secondary);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.note-card .note-meta{font-size:11px;color:var(--text-secondary);margin-top:8px;display:flex;gap:12px}
+.domain-tag{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.account-card{display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:10px}
+.account-card .acct-name{font-weight:600}.account-card .acct-type{font-size:11px;color:var(--text-secondary)}
+.account-card .acct-balance{font-size:20px;font-weight:800}
+.holding-table{width:100%;border-collapse:collapse;font-size:13px}
+.holding-table th,.holding-table td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+.holding-table th{font-size:11px;color:var(--text-secondary);font-weight:600}
+.holding-table .up{color:var(--success)}.holding-table .down{color:var(--danger)}
+.contact-card{background:var(--card);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:10px}
+.contact-card .contact-name{font-weight:600;font-size:14px}
+.contact-card .contact-info{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.contact-card .contact-level{display:inline-block;margin-top:6px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--soft);color:var(--primary)}
+.timeline-item{padding:10px 0;border-left:2px solid var(--soft);padding-left:16px;margin-left:8px;position:relative}
+.timeline-item::before{content:'';position:absolute;left:-5px;top:14px;width:8px;height:8px;border-radius:50%;background:var(--primary)}
+.timeline-item .tl-date{font-size:11px;color:var(--text-secondary)}
+.timeline-item .tl-text{font-size:13px;margin-top:2px}
+.quick-actions{display:flex;gap:10px;margin-top:16px}
+.qa-btn{flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--soft);font-size:12px;font-weight:600;color:var(--primary);cursor:pointer;text-align:center;transition:.2s}
+.qa-btn:hover{background:var(--primary);color:#fff}
+.qa-btn.danger{color:var(--danger);border-color:#fecaca;background:#fef2f2}
+.qa-btn.danger:hover{background:var(--danger);color:#fff}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);display:none;align-items:center;justify-content:center;z-index:200}
+.modal-overlay.show{display:flex}
+.modal{background:var(--card);border-radius:var(--radius);padding:24px;width:480px;max-width:90vw;box-shadow:var(--shadow-lg)}
+.modal h3{font-size:17px;margin-bottom:16px}
+.modal input,.modal textarea,.modal select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;margin-bottom:12px;font-family:inherit}
+.modal textarea{min-height:80px;resize:vertical}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
+.btn{padding:8px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:#db2777}
+.btn-secondary{background:var(--soft);color:var(--primary)}.btn-secondary:hover{background:#f9a8d4}
+.toast{position:fixed;top:20px;right:20px;z-index:300;background:var(--success);color:#fff;padding:12px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;box-shadow:var(--shadow-lg);transform:translateX(120%);transition:transform .3s}
+.toast.show{transform:translateX(0)}.toast.error{background:var(--danger)}
+.loading{text-align:center;padding:40px;color:var(--text-secondary);font-size:14px}
+.empty{text-align:center;padding:30px;color:var(--text-secondary);font-size:13px}
+.menu-toggle{display:none;position:fixed;top:16px;left:16px;z-index:110;background:var(--primary);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer}
+@media(max-width:1100px){
+  .sidebar{transform:translateX(-100%);z-index:150}.sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}.menu-toggle{display:flex;align-items:center;justify-content:center}
+  .top-cards{grid-template-columns:repeat(2,1fr);gap:8px}
+  .chart-row,.chart-row-3{grid-template-columns:1fr}
+  .stat-card{padding:14px 16px}
+  .stat-card .value{font-size:22px}
+  .header-left h1{font-size:18px}
+  .panel{padding:14px}
+  .chart{height:260px}.chart-sm{height:220px}.chart-lg{height:300px}
+}
+@media(max-width:640px){
+  .top-cards{grid-template-columns:repeat(2,1fr);gap:6px}
+  .stat-card{padding:10px 12px}
+  .stat-card .value{font-size:18px}
+  .stat-card .icon{font-size:18px}
+  .header-right .search-box{display:none}
+  .main{padding:16px 12px}
+  .chart{height:220px}.chart-sm{height:200px}.chart-lg{height:260px}
+}
+/* 移动端安全区 */
+@supports(padding:max(0px)){
+  .main{padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
+  .sidebar{padding-bottom:env(safe-area-inset-bottom)}
+}
+</style>
+</head>
+<body>
+
+<!-- 登录页面 -->
+<div id="login-page" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#fdf2f8,#fce7f3,#fbcfe8)">
+  <div style="background:#fff;border-radius:20px;padding:40px 32px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(236,72,153,0.15);text-align:center">
+    <div style="font-size:48px;margin-bottom:8px">🌸</div>
+    <h2 style="font-size:22px;font-weight:800;margin-bottom:4px;color:#ec4899">Personal OS</h2>
+    <p style="font-size:13px;color:#64748b;margin-bottom:24px">你的第二大脑 · 人生操作系统</p>
+    <input id="login-username" type="text" placeholder="用户名" value="vincent" style="width:100%;padding:12px 16px;border:1px solid #fce7f3;border-radius:12px;font-size:14px;margin-bottom:12px;outline:none;font-family:inherit" autocomplete="username">
+    <input id="login-password" type="password" placeholder="密码" value="admin123" style="width:100%;padding:12px 16px;border:1px solid #fce7f3;border-radius:12px;font-size:14px;margin-bottom:20px;outline:none;font-family:inherit" autocomplete="current-password">
+    <button id="login-btn" onclick="doLogin()" style="width:100%;padding:12px;background:#ec4899;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:.2s">登 录</button>
+    <p id="login-error" style="font-size:12px;color:#ef4444;margin-top:12px;display:none"></p>
+    <p style="font-size:11px;color:#94a3b8;margin-top:20px">首次使用默认账号：vincent / admin123</p>
+  </div>
+</div>
+
+<!-- 主应用 -->
+<div id="main-app" style="display:none">
+<button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">🌸 Personal OS<span>v1.0</span></div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-page="dashboard">📊 仪表盘</button>
+    <button class="nav-item" data-page="goals">🎯 目标管理</button>
+    <button class="nav-item" data-page="growth">🌱 成长管理</button>
+    <button class="nav-item" data-page="finance">💰 财务管理</button>
+    <button class="nav-item" data-page="health">❤️ 健康管理</button>
+    <button class="nav-item" data-page="relation">👥 人脉管理</button>
+    <button class="nav-item" data-page="agent">🤖 AI 协作</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">V</div>
+      <div><div class="user-name">Vincent</div><div class="user-role">Owner</div></div>
+    </div>
+  </div>
+</aside>
+
+<main class="main" id="app"></main>
+
+<div class="modal-overlay" id="modal"><div class="modal" id="modal-content"></div></div>
+<div class="toast" id="toast"></div>
+</div><!-- end main-app -->
+
+<script>
+const API='__RAILWAY_API_URL__/api/v1';
+let token='',charts={};
+
+// PWA Service Worker
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/app/sw.js').catch(()=>{});
+}
+
+// ========== 登录 ==========
+async function doLogin(){
+  const btn=document.getElementById('login-btn');
+  const err=document.getElementById('login-error');
+  btn.disabled=true;btn.textContent='登录中...';err.style.display='none';
+  try{
+    const r=await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      username:document.getElementById('login-username').value,
+      password:document.getElementById('login-password').value
+    })});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.detail||'登录失败');
+    token=d.access_token;
+    // 记住登录
+    localStorage.setItem('pos_token',token);
+    localStorage.setItem('pos_user',JSON.stringify(d.user));
+    document.getElementById('login-page').style.display='none';
+    document.getElementById('main-app').style.display='block';
+    renderPage('dashboard');
+  }catch(e){
+    err.textContent=e.message;err.style.display='block';
+    btn.disabled=false;btn.textContent='登 录';
+  }
+}
+
+// 自动登录检查
+(async function autoLogin(){
+  const saved=localStorage.getItem('pos_token');
+  if(saved){
+    token=saved;
+    try{
+      const r=await fetch(`${API}/dashboard?token=${token}`);
+      if(r.ok){
+        document.getElementById('login-page').style.display='none';
+        document.getElementById('main-app').style.display='block';
+        renderPage('dashboard');
+        return;
+      }
+    }catch(e){}
+  }
+  document.getElementById('login-page').style.display='flex';
+  document.getElementById('main-app').style.display='none';
+  // 回车登录
+  document.getElementById('login-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+})();
+
+async function api(path,opt={}){
+  if(!token){const saved=localStorage.getItem('pos_token');if(saved)token=saved;}
+  const sep=path.includes('?')?'&':'?';
+  const r=await fetch(`${API}${path}${sep}token=${token}`,{headers:{'Content-Type':'application/json'},...opt});
+  if(!r.ok)throw new Error(`API error: ${r.status}`);
+  return r.json();
+}
+
+function disposeCharts(){Object.values(charts).forEach(c=>{try{c.dispose()}catch(e){}});charts={};}
+function initChart(id){const el=document.getElementById(id);if(!el)return null;const c=echarts.init(el);charts[id]=c;return c;}
+const pinkPalette=['#ec4899','#f472b6','#f9a8d4','#fbcfe8','#fce7f3','#db2777','#be185d','#9d174d','#fda4af','#fecdd3'];
+const expensePalette=['#ec4899','#f472b6','#f9a8d4','#fbcfe8','#fce7f3','#db2777','#e11d48','#be185d','#fb7185','#fda4af'];
+
+function chartTheme(c){return{color:pinkPalette,textStyle:{color:'#64748b',fontSize:12},title:{textStyle:{color:'#1e293b',fontSize:14,fontWeight:700}}}};
+
+function showToast(msg,isErr){
+  const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(isErr?' error':'');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// Navigation
+document.querySelectorAll('.nav-item').forEach(item=>{item.addEventListener('click',()=>{
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  item.classList.add('active');
+  document.querySelector('.sidebar').classList.remove('open');
+  renderPage(item.dataset.page);
+})});
+
+// ==================== RENDER ====================
+async function renderPage(page){
+  disposeCharts();
+  const app=document.getElementById('app');
+  app.innerHTML='<div class="loading">加载中...</div>';
+  try{
+    switch(page){
+      case 'dashboard':await renderDashboard(app);break;
+      case 'goals':await renderGoals(app);break;
+      case 'growth':await renderGrowth(app);break;
+      case 'finance':await renderFinance(app);break;
+      case 'health':await renderHealth(app);break;
+      case 'relation':await renderRelation(app);break;
+      case 'agent':renderAgent(app);break;
+    }
+  }catch(e){app.innerHTML=`<div class="loading">加载失败: ${e.message}</div>`;}
+  window.addEventListener('resize',()=>Object.values(charts).forEach(c=>c.resize()));
+}
+
+// ==================== DASHBOARD ====================
+async function renderDashboard(app){
+  const d=await api('/dashboard');
+  const formatCNY=v=>'¥'+(v/10000).toFixed(1)+'万';
+  
+  app.innerHTML=`
+    <div class="header"><div class="header-left"><h1>晚上好，Vincent 👋</h1><div class="date">${new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'})}</div></div>
+    <div class="header-right"><button class="notif-badge">🔔 每月1号：导入账单提醒</button><div class="search-box"><span>🔍</span><input placeholder="搜索..."></div></div></div>
+    <div class="top-cards">
+      <div class="stat-card" onclick="renderPage('goals')"><div class="icon">🎯</div><div class="label">年度目标进度</div><div class="value">${d.goals?.avg_progress||0}%</div><div class="sub up">${d.goals?.total||0} 个目标进行中</div></div>
+      <div class="stat-card" onclick="renderPage('finance')"><div class="icon">💰</div><div class="label">总净资产</div><div class="value">${formatCNY(d.finance?.net_worth||0)}</div><div class="sub up">本月收支 ${formatCNY(d.finance?.monthly_income||0)} / ${formatCNY(d.finance?.monthly_expense||0)}</div></div>
+      <div class="stat-card" onclick="renderPage('health')"><div class="icon">❤️</div><div class="label">健康评分</div><div class="value">${d.health?.score||85}</div><div class="sub">基于睡眠和运动</div></div>
+      <div class="stat-card" onclick="renderPage('growth')"><div class="icon">🧠</div><div class="label">本月笔记</div><div class="value">${d.growth?.monthly_notes||0}</div><div class="sub up">持续学习中</div></div>
+      <div class="stat-card" onclick="renderPage('relation')"><div class="icon">👥</div><div class="label">人脉网络</div><div class="value">${d.relation?.total_contacts||0}</div><div class="sub">位联系人</div></div>
+    </div>
+    <div class="chart-row">
+      <div class="panel"><h3>📈 近30天收支趋势</h3><div class="chart" id="chart-income"></div></div>
+      <div class="panel"><h3>🎯 年度目标完成率</h3><div class="chart" id="chart-gauge"></div></div>
+    </div>
+    <div class="chart-row">
+      <div class="panel"><h3>🍩 本月支出分类</h3><div class="chart" id="chart-expense-pie"></div></div>
+      <div class="panel"><h3>📊 成长领域热力</h3><div class="chart" id="chart-domain-bar"></div></div>
+    </div>
+    <div class="chart-row">
+      <div class="panel"><h3>📅 今日焦点</h3><div id="today-tasks">${(d.today_tasks||[]).length?d.today_tasks.map(t=>`<div class="task-item"><div class="task-check" onclick="this.classList.toggle('done')"></div><span class="task-text">${t.title}</span><span class="task-tag tag-goal">${t.objective||''}</span></div>`).join(''):'<div class="empty">🎉 今天没有待办事项</div>'}</div></div>
+      <div class="panel"><h3>🤖 AI 洞察</h3><div id="ai-insights"></div></div>
+    </div>`;
+
+  // Charts
+  await renderIncomeChart(d);
+  renderGaugeChart(d);
+  await renderExpensePieChart();
+  renderDomainBarChart(d);
+  renderAIInsights(d);
+}
+
+async function renderIncomeChart(d){
+  const c=initChart('chart-income');if(!c)return;
+  const months=[];for(let i=29;i>=0;i--){const dt=new Date();dt.setDate(dt.getDate()-i);months.push(`${dt.getMonth()+1}/${dt.getDate()}`);}
+  c.setOption({...chartTheme(),tooltip:{trigger:'axis'},legend:{data:['收入','支出'],bottom:0},grid:{left:50,right:20,top:20,bottom:30},
+    xAxis:{type:'category',data:months,axisLabel:{fontSize:10,rotate:45}},yAxis:{type:'value',axisLabel:{formatter:v=>'¥'+v}},
+    series:[
+      {name:'收入',type:'line',data:months.map(()=>Math.round(Math.random()*500+100)),smooth:true,lineStyle:{color:'#10b981'},itemStyle:{color:'#10b981'},symbol:'none'},
+      {name:'支出',type:'line',data:months.map(()=>Math.round(Math.random()*400+50)),smooth:true,lineStyle:{color:'#ec4899'},itemStyle:{color:'#ec4899'},symbol:'none',areaStyle:{color:'rgba(236,72,153,0.1)'}}
+    ]});
+}
+
+function renderGaugeChart(d){
+  const c=initChart('chart-gauge');if(!c)return;
+  const v=d.goals?.avg_progress||0;
+  c.setOption({...chartTheme(),series:[{type:'gauge',startAngle:210,endAngle:-30,center:['50%','60%'],radius:'90%',min:0,max:100,
+    axisLine:{lineStyle:{width:20,color:[[v/100,'#ec4899'],[1,'#fce7f3']]}},
+    pointer:{itemStyle:{color:'#ec4899'},length:'60%',width:6},
+    axisTick:{distance:-20,length:6,lineStyle:{color:'#ec4899',width:1}},
+    splitLine:{distance:-20,length:16,lineStyle:{color:'#ec4899',width:2}},
+    axisLabel:{color:'#64748b',fontSize:10,distance:25},
+    detail:{valueAnimation:true,formatter:'{value}%',color:'#ec4899',fontSize:28,fontWeight:'bold',offsetCenter:[0,'50%']},
+    data:[{value:v,name:'目标进度'}]
+  }]});
+}
+
+async function renderExpensePieChart(){
+  const c=initChart('chart-expense-pie');if(!c)return;
+  try{
+    const txns=await api('/finance/transactions?limit=200');
+    const cats={};txns.forEach(t=>{if(t.amount<0){const n=t.category_name||'其他';cats[n]=(cats[n]||0)+Math.abs(t.amount);}});
+    const data=Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    c.setOption({...chartTheme(),color:expensePalette,tooltip:{trigger:'item',formatter:'{b}: ¥{c} ({d}%)'},legend:{bottom:0},series:[{type:'pie',radius:['45%','75%'],center:['50%','50%'],label:{show:true,formatter:'{b}\n{d}%',fontSize:10},data:data.map(([n,v])=>({name:n,value:v}))}]});
+  }catch(e){document.getElementById('chart-expense-pie').innerHTML='<div class="empty">暂无支出数据</div>';}
+}
+
+function renderDomainBarChart(d){
+  const c=initChart('chart-domain-bar');if(!c)return;
+  const domains=d.domain_heatmap||[];
+  c.setOption({...chartTheme(),color:['#ec4899'],tooltip:{trigger:'axis'},grid:{left:50,right:20,top:10,bottom:20},
+    xAxis:{type:'category',data:domains.map(d=>d.name),axisLabel:{fontSize:11}},yAxis:{type:'value',axisLabel:{fontSize:10}},
+    series:[{type:'bar',data:domains.map(d=>d.count),barWidth:'50%',itemStyle:{borderRadius:[6,6,0,0],
+      color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#ec4899'},{offset:1,color:'#fbcfe8'}])},
+      label:{show:true,position:'top',fontSize:11,color:'#ec4899',fontWeight:'bold'}}]});
+}
+
+function renderAIInsights(d){
+  const insights=[];
+  const expense=d.finance?.monthly_expense||0;
+  if(expense>0)insights.push({type:'positive',text:`💡 本月支出 ${(expense/10000).toFixed(2)}万，系统持续追踪消费趋势。`});
+  const goals=d.goals?.total||0;
+  if(goals>0)insights.push({type:'positive',text:`🎯 ${goals}个活跃目标进行中，建议每周日复盘回顾。`});
+  else insights.push({type:'warning',text:'⚠️ 还没有设定目标，点击左侧「目标管理」开始规划。'});
+  insights.push({type:'positive',text:'📖 Obsidian写完笔记后Git push，系统自动同步到成长模块。'});
+  insights.push({type:'warning',text:'🔔 每月1号记得导入支付宝/微信账单CSV。'});
+  insights.push({type:'positive',text:'💪 身体不适或来姨妈，一句话记录到健康模块。'});
+  document.getElementById('ai-insights').innerHTML=insights.map(i=>`<div class="insight-item"><div class="insight-dot ${i.type}"></div><div class="insight-content">${i.text}</div></div>`).join('');
+}
+
+// ==================== GOALS ====================
+async function renderGoals(app){
+  const goals=await api('/goals');
+  app.innerHTML=`<div class="header"><div class="header-left"><h1>🎯 目标管理</h1><div class="date">${goals.length} 个目标</div></div>
+    <div class="header-right"><button class="btn btn-primary" onclick="openGoalModal()">+ 新建目标</button></div></div>
+    <div class="panel"><h3>📊 目标进度总览</h3><div class="chart chart-lg" id="chart-goal-progress"></div></div>
+    <div id="goals-list" style="margin-top:18px"></div>`;
+
+  const c=initChart('chart-goal-progress');
+  if(c&&goals.length){
+    c.setOption({...chartTheme(),tooltip:{trigger:'axis',axisPointer:{type:'shadow'}},grid:{left:120,right:40,top:10,bottom:20},
+      xAxis:{type:'value',max:100,axisLabel:{formatter:'{value}%'}},yAxis:{type:'category',data:goals.map(g=>g.title),axisLabel:{fontSize:11,width:100,overflow:'truncate'}},
+      series:[{type:'bar',data:goals.map(g=>g.progress||0),barWidth:'50%',itemStyle:{borderRadius:[0,6,6,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#fbcfe8'},{offset:1,color:'#ec4899'}])},label:{show:true,position:'right',formatter:'{c}%',color:'#ec4899',fontWeight:'bold'}}]});
+  }
+
+  const list=document.getElementById('goals-list');
+  list.innerHTML=goals.length?goals.map(g=>`
+    <div class="goal-card">
+      <h4>${g.icon||'🎯'} ${g.title}</h4>
+      <div class="meta"><span>📅 ${g.start_date} ~ ${g.end_date}</span><span>⭐ 优先级 ${g.priority}/10</span><span>📌 ${g.status}</span></div>
+      <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>进度</span><span style="color:var(--primary);font-weight:600">${g.progress||0}%</span></div>
+      <div style="height:8px;background:var(--soft);border-radius:4px;overflow:hidden"><div style="height:100%;width:${g.progress||0}%;background:linear-gradient(90deg,var(--primary),var(--primary-light));border-radius:4px"></div></div></div>
+      ${g.description?`<div style="font-size:12px;color:var(--text-secondary)">${g.description}</div>`:''}
+    </div>`).join(''):'<div class="empty">还没有目标，点击右上角「新建目标」开始</div>';
+}
+
+function openGoalModal(){
+  const mc=document.getElementById('modal-content');
+  mc.innerHTML=`<h3>🎯 创建新目标</h3>
+    <input id="m-title" placeholder="目标标题"><textarea id="m-desc" placeholder="描述（可选）"></textarea>
+    <select id="m-type"><option value="annual">年度目标</option><option value="quarterly">季度目标</option><option value="monthly">月度目标</option></select>
+    <input id="m-start" type="date" value="${new Date().toISOString().split('T')[0]}">
+    <input id="m-end" type="date" value="${new Date(new Date().setFullYear(new Date().getFullYear()+1)).toISOString().split('T')[0]}">
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="createGoal()">创建</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+async function createGoal(){
+  const title=document.getElementById('m-title')?.value;if(!title)return;
+  await api('/goals',{method:'POST',body:JSON.stringify({title,description:document.getElementById('m-desc')?.value||'',type:document.getElementById('m-type')?.value||'annual',start_date:document.getElementById('m-start')?.value,end_date:document.getElementById('m-end')?.value})});
+  closeModal();showToast('✅ 目标已创建');renderPage('goals');
+}
+
+// ==================== GROWTH ====================
+async function renderGrowth(app){
+  const [domains,notes,insights]=await Promise.all([api('/growth/domains'),api('/growth/notes?limit=50'),api('/growth/insights?limit=20')]);
+  app.innerHTML=`<div class="header"><div class="header-left"><h1>🌱 成长管理</h1><div class="date">${notes.length} 篇笔记 · ${insights.length} 条洞见</div></div>
+    <div class="header-right"><button class="btn btn-primary" onclick="openInsightModal()">💡 记录灵感</button></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">${domains.map(d=>`<span class="domain-tag" style="background:${d.color}20;color:${d.color};cursor:pointer" onclick="filterNotesByDomain('${d.id}')">${d.icon||''} ${d.name}</span>`).join('')}<span class="domain-tag" style="background:var(--soft);color:var(--primary);cursor:pointer" onclick="filterNotesByDomain(null)">📋 全部</span></div>
+    <div class="chart-row"><div class="panel"><h3>📊 各领域笔记分布</h3><div class="chart chart-sm" id="chart-domain-pie"></div></div><div class="panel"><h3>💡 最新洞见</h3><div id="insights-list"></div></div></div>
+    <h3 style="margin:18px 0 10px">📝 笔记列表</h3><div id="notes-list"></div>`;
+
+  const c=initChart('chart-domain-pie');
+  if(c&&domains.length){
+    const noteCounts={};notes.forEach(n=>{const dn=n.domain_name||'未分类';noteCounts[dn]=(noteCounts[dn]||0)+1;});
+    c.setOption({...chartTheme(),color:pinkPalette,tooltip:{trigger:'item'},series:[{type:'pie',radius:['40%','70%'],center:['50%','50%'],label:{fontSize:10},data:Object.entries(noteCounts).map(([n,v])=>({name:n,value:v}))}]});
+  }
+
+  document.getElementById('insights-list').innerHTML=insights.length?insights.slice(0,5).map(i=>`<div class="insight-item"><div class="insight-dot positive"></div><div class="insight-content">💡 ${i.content} <span style="font-size:10px;color:var(--text-secondary)">置信度 ${i.confidence}/10</span></div></div>`).join(''):'<div class="empty">暂无洞见</div>';
+
+  window._allNotes=notes;
+  renderNotesList(notes);
+}
+function renderNotesList(notes){
+  document.getElementById('notes-list').innerHTML=notes.length?notes.map(n=>`
+    <div class="note-card"><h4>${n.title}</h4><div class="excerpt">${(n.content||'').substring(0,120)}...</div>
+    <div class="note-meta"><span>🏷️ ${n.domain_name||'未分类'}</span><span>📝 ${n.note_type}</span><span>⏱️ ${n.reading_time||0}分钟</span><span>${n.created_at?.substring(0,10)||''}</span></div></div>`).join(''):'<div class="empty">还没有笔记，在 Obsidian 中写作并 Git push 吧！</div>';
+}
+function filterNotesByDomain(domainId){
+  if(!domainId){renderNotesList(window._allNotes||[]);return;}
+  renderNotesList((window._allNotes||[]).filter(n=>n.domain_id===domainId));
+}
+function openInsightModal(){
+  const mc=document.getElementById('modal-content');
+  mc.innerHTML=`<h3>💡 记录灵感</h3><textarea id="m-content" placeholder="一句话记录你的灵感..."></textarea>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="createInsight()">保存</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+async function createInsight(){
+  const content=document.getElementById('m-content')?.value;if(!content)return;
+  await api('/growth/insights',{method:'POST',body:JSON.stringify({content})});closeModal();showToast('✅ 灵感已保存');renderPage('growth');
+}
+
+// ==================== FINANCE ====================
+async function renderFinance(app){
+  const accounts=await api('/finance/accounts');
+  const txns=await api('/finance/transactions?limit=200');
+  app.innerHTML=`<div class="header"><div class="header-left"><h1>💰 财务管理</h1><div class="date">${accounts.length} 个账户</div></div>
+    <div class="header-right"><button class="btn btn-primary" onclick="showToast('CSV导入功能开发中')">📥 导入账单</button></div></div>
+    <div class="chart-row">
+      <div class="panel"><h3>🥧 资产分布</h3><div class="chart chart-sm" id="chart-asset-pie"></div></div>
+      <div class="panel"><h3>📈 近6个月收支趋势</h3><div class="chart chart-sm" id="chart-finance-trend"></div></div>
+    </div>
+    <div class="chart-row"><div class="panel panel-full"><h3>💳 账户总览</h3><div id="accounts-list"></div></div></div>
+    <div class="panel" style="margin-top:18px"><h3>📋 投资持仓</h3><div id="holdings-table"></div></div>`;
+
+  const c1=initChart('chart-asset-pie');
+  if(c1&&accounts.length){
+    c1.setOption({...chartTheme(),color:pinkPalette,tooltip:{trigger:'item',formatter:'{b}: ¥{c}'},series:[{type:'pie',radius:['45%','75%'],center:['50%','50%'],label:{fontSize:11,formatter:'{b}\n¥{c}'},data:accounts.map(a=>({name:a.name,value:parseFloat(a.balance||0)}))}]});
+  }
+
+  const c2=initChart('chart-finance-trend');
+  if(c2){
+    const months=[];for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push(`${d.getMonth()+1}月`);}
+    c2.setOption({...chartTheme(),tooltip:{trigger:'axis'},legend:{data:['收入','支出'],bottom:0},grid:{left:60,right:20,top:20,bottom:30},
+      xAxis:{type:'category',data:months},yAxis:{type:'value',axisLabel:{formatter:v=>'¥'+v}},
+      series:[{name:'收入',type:'bar',data:months.map(()=>Math.round(Math.random()*20000+15000)),itemStyle:{color:'#10b981',borderRadius:[6,6,0,0]}},
+        {name:'支出',type:'bar',data:months.map(()=>Math.round(Math.random()*12000+5000)),itemStyle:{color:'#ec4899',borderRadius:[6,6,0,0]}}]});
+  }
+
+  document.getElementById('accounts-list').innerHTML=accounts.map(a=>`
+    <div class="account-card"><div><div class="acct-name">${a.icon||'💳'} ${a.name}</div><div class="acct-type">${a.type}</div></div>
+    <div class="acct-balance">¥${(parseFloat(a.balance||0)).toLocaleString()}</div></div>`).join('')||'<div class="empty">暂无账户</div>';
+
+  // Mock holdings
+  document.getElementById('holdings-table').innerHTML=`
+    <table class="holding-table"><thead><tr><th>代码</th><th>名称</th><th>数量</th><th>成本价</th><th>现价</th><th>盈亏</th></tr></thead><tbody>
+    <tr><td>600519</td><td>贵州茅台</td><td>100</td><td>¥1,680</td><td>¥1,720</td><td class="up">+¥4,000 (+2.4%)</td></tr>
+    <tr><td>000858</td><td>五粮液</td><td>200</td><td>¥145</td><td>¥152</td><td class="up">+¥1,400 (+4.8%)</td></tr>
+    <tr><td>600036</td><td>招商银行</td><td>500</td><td>¥35</td><td>¥38</td><td class="up">+¥1,500 (+8.6%)</td></tr></tbody></table>`;
+}
+
+// ==================== HEALTH ====================
+async function renderHealth(app){
+  const metrics=await api('/health/metrics?metric_type=weight&limit=30');
+  const sleep=await api('/health/metrics?metric_type=sleep&limit=30');
+  app.innerHTML=`<div class="header"><div class="header-left"><h1>❤️ 健康管理</h1><div class="date">30天数据追踪</div></div></div>
+    <div class="chart-row">
+      <div class="panel"><h3>⚖️ 近30天体重趋势</h3><div class="chart chart-sm" id="chart-weight"></div></div>
+      <div class="panel"><h3>😴 近30天睡眠质量</h3><div class="chart chart-sm" id="chart-sleep"></div></div>
+    </div>
+    <div class="chart-row">
+      <div class="panel"><h3>📋 快捷记录</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="qa-btn" onclick="quickHealthLog('今天来姨妈了')">🩸 姨妈来了</button>
+          <button class="qa-btn danger" onclick="quickHealthLog('今天头疼')">🤒 不舒服</button>
+          <button class="qa-btn" onclick="quickHealthLog('晨跑5公里')">🏃 运动了</button>
+          <button class="qa-btn" onclick="quickHealthLog('昨晚没睡好')">😴 没睡好</button>
+        </div>
+      </div>
+      <div class="panel"><h3>📤 体检报告</h3>
+        <input type="file" accept=".pdf" id="exam-file" style="margin-bottom:8px;font-size:13px">
+        <button class="btn btn-primary" onclick="uploadExam()">上传并分析</button>
+        <div style="margin-top:12px;font-size:12px;color:var(--text-secondary)">最近体检：2026-04-30 · 某某体检中心 · 综合评分 85</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <span style="background:#fef2f2;color:var(--danger);padding:4px 10px;border-radius:10px;font-size:11px">⚠️ 总胆固醇 5.8</span>
+          <span style="background:#fef2f2;color:var(--danger);padding:4px 10px;border-radius:10px;font-size:11px">⚠️ 甘油三酯 1.9</span>
+          <span style="background:#fef2f2;color:var(--danger);padding:4px 10px;border-radius:10px;font-size:11px">⚠️ 尿酸 450</span>
+        </div>
+      </div>
+    </div>`;
+
+  const c1=initChart('chart-weight');
+  if(c1&&metrics.length){
+    c1.setOption({...chartTheme(),tooltip:{trigger:'axis'},grid:{left:50,right:20,top:10,bottom:20},
+      xAxis:{type:'category',data:metrics.map(m=>m.measured_at?.substring(0,10)).reverse(),axisLabel:{fontSize:9,rotate:45}},
+      yAxis:{type:'value',name:'kg'},series:[{type:'line',data:metrics.map(m=>m.value).reverse(),smooth:true,lineStyle:{color:'#ec4899',width:2},itemStyle:{color:'#ec4899'},symbol:'circle',symbolSize:4,areaStyle:{color:'rgba(236,72,153,0.08)'}}]});
+  }
+
+  const c2=initChart('chart-sleep');
+  if(c2){
+    const days=[];for(let i=29;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);days.push(`${d.getMonth()+1}/${d.getDate()}`);}
+    c2.setOption({...chartTheme(),tooltip:{trigger:'axis'},legend:{data:['睡眠时长','深睡'],bottom:0},grid:{left:50,right:20,top:20,bottom:30},
+      xAxis:{type:'category',data:days,axisLabel:{fontSize:9,rotate:45}},yAxis:{type:'value',name:'分钟'},
+      series:[{name:'睡眠时长',type:'bar',data:days.map(()=>Math.round(Math.random()*150+360)),itemStyle:{color:'#f9a8d4',borderRadius:[4,4,0,0]},barGap:'10%'},
+        {name:'深睡',type:'bar',data:days.map(()=>Math.round(Math.random()*100+60)),itemStyle:{color:'#ec4899',borderRadius:[4,4,0,0]}}]});
+  }
+}
+async function quickHealthLog(content){
+  await api('/health/quick-log',{method:'POST',body:JSON.stringify({content,recorded_at:new Date().toISOString().split('T')[0]})});
+  showToast('✅ 已记录：'+content);
+}
+async function uploadExam(){
+  const file=document.getElementById('exam-file')?.files?.[0];if(!file){showToast('请先选择体检报告PDF',true);return;}
+  const fd=new FormData();fd.append('file',file);fd.append('exam_date',new Date().toISOString().split('T')[0]);
+  const r=await fetch(`${API}/health/exam/upload?token=${token}`,{method:'POST',body:fd});
+  const d=await r.json();showToast('✅ '+d.message);
+}
+
+// ==================== RELATION ====================
+async function renderRelation(app){
+  const [contacts,favors,summary]=await Promise.all([api('/relations/contacts'),api('/relations/favors'),api('/relations/favors/summary')]);
+  app.innerHTML=`<div class="header"><div class="header-left"><h1>👥 人脉管理</h1><div class="date">${contacts.length} 位联系人 · ${favors.length} 条往来记录</div></div>
+    <div class="header-right"><button class="btn btn-primary" onclick="openFavorModal()">🎁 记录人情</button></div></div>
+    <div class="chart-row">
+      <div class="panel"><h3>📊 人情往来总览</h3><div class="chart chart-sm" id="chart-favor-summary"></div></div>
+      <div class="panel"><h3>⚠️ 待回礼提醒</h3><div id="favor-pending"></div></div>
+    </div>
+    <div class="chart-row"><div class="panel panel-full"><h3>👤 联系人列表</h3><div id="contacts-list"></div></div></div>
+    <div class="chart-row">
+      <div class="panel"><h3>📅 最近互动</h3><div id="timeline"></div></div>
+      <div class="panel"><h3>🎁 最近人情往来</h3><div id="favor-list"></div></div>
+    </div>`;
+
+  // 人情往来柱状图
+  const c=initChart('chart-favor-summary');
+  if(c&&summary.length){
+    c.setOption({...chartTheme(),color:['#ec4899','#10b981'],tooltip:{trigger:'axis'},legend:{data:['我送出','我收到'],bottom:0},grid:{left:60,right:20,top:10,bottom:30},
+      xAxis:{type:'category',data:summary.map(s=>s.contact_name),axisLabel:{fontSize:10,rotate:30}},
+      yAxis:{type:'value',axisLabel:{formatter:v=>'¥'+v}},
+      series:[
+        {name:'我送出',type:'bar',data:summary.map(s=>s.total_give||0),itemStyle:{color:'#ec4899',borderRadius:[6,6,0,0]}},
+        {name:'我收到',type:'bar',data:summary.map(s=>s.total_receive||0),itemStyle:{color:'#10b981',borderRadius:[6,6,0,0]}}
+      ]});
+  }
+
+  // 待回礼提醒
+  const pending=summary.filter(s=>s.pending_count>0);
+  document.getElementById('favor-pending').innerHTML=pending.length?pending.map(s=>`
+    <div class="insight-item"><div class="insight-dot warning"></div>
+    <div class="insight-content">🔔 <b>${s.contact_name}</b>：${s.pending_count}笔未回礼，合计 <b>¥${s.total_give_unreciprocated||0}</b></div></div>`).join(''):'<div class="empty">✅ 没有人情需要回礼</div>';
+
+  // 联系人
+  document.getElementById('contacts-list').innerHTML=contacts.length?contacts.map(c=>`
+    <div class="contact-card" style="cursor:pointer" onclick="showContactFavors('${c.id}','${c.name}')">
+    <div class="contact-name">${c.name}</div>
+    <div class="contact-info">${c.company||''} · ${c.position||''}<br>📧 ${c.email||'-'} · 📱 ${c.phone||'-'}</div>
+    <span class="contact-level">亲密度 ${c.relationship_level||5}/10</span></div>`).join(''):'<div class="empty">还没有联系人</div>';
+
+  // 互动时间轴
+  document.getElementById('timeline').innerHTML=[{d:'7月28日',t:'与张总电话讨论项目合作'},{d:'7月25日',t:'和李教授共进午餐'},{d:'7月20日',t:'王教练指导健身计划调整'},{d:'7月15日',t:'陈医生复查体检报告'}].map(i=>`<div class="timeline-item"><div class="tl-date">${i.d}</div><div class="tl-text">${i.t}</div></div>`).join('');
+
+  // 最近人情
+  document.getElementById('favor-list').innerHTML=favors.length?favors.slice(0,8).map(f=>`
+    <div class="timeline-item">
+      <div class="tl-date">${f.event_date?.substring(0,10)} · ${f.contact_name}</div>
+      <div class="tl-text">${f.type==='give'?'🎁 送出':'🎀 收到'} ${f.title} ${f.amount?'¥'+f.amount:''} ${f.is_reciprocated?'✅ 已回':f.type==='give'?'⚠️ 待回':''}</div>
+    </div>`).join(''):'<div class="empty">暂无记录</div>';
+}
+
+async function showContactFavors(contactId,name){
+  const favors=await api('/relations/favors?contact_id='+contactId);
+  const mc=document.getElementById('modal-content');
+  mc.innerHTML=`<h3>🎁 ${name} · 人情往来</h3>
+    <div style="max-height:400px;overflow-y:auto">${favors.length?favors.map(f=>`
+      <div class="timeline-item"><div class="tl-date">${f.event_date?.substring(0,10)}</div>
+      <div class="tl-text">${f.type==='give'?'🎁 送出':'🎀 收到'} <b>${f.title}</b> ${f.amount?'· ¥'+f.amount:''}<br><span style="font-size:11px;color:var(--text-secondary)">${f.description||''} ${f.is_reciprocated?'✅ 已回礼':f.type==='give'?'⚠️ 待回礼':''}</span></div></div>`).join(''):'<div class="empty">暂无记录</div>'}</div>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">关闭</button><button class="btn btn-primary" onclick="closeModal();openFavorModal('${contactId}')">+ 添加记录</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+
+function openFavorModal(presetContactId){
+  const mc=document.getElementById('modal-content');
+  mc.innerHTML=`<h3>🎁 记录人情往来</h3>
+    <select id="m-type"><option value="give">🎁 我送出</option><option value="receive">🎀 我收到</option></select>
+    <input id="m-title" placeholder="事项（如：春节红包、生日礼物）">
+    <input id="m-amount" type="number" placeholder="金额（可选）">
+    <input id="m-desc" placeholder="备注（可选）">
+    <input id="m-date" type="date" value="${new Date().toISOString().split('T')[0]}">
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="createFavor('${presetContactId||''}')">保存</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+
+async function createFavor(presetContactId){
+  const title=document.getElementById('m-title')?.value;if(!title)return;
+  let contactId=presetContactId;
+  if(!contactId){
+    const contacts=await api('/relations/contacts');
+    if(!contacts.length){showToast('请先添加联系人',true);return;}
+    contactId=contacts[0].id;
+  }
+  await api('/relations/favors',{method:'POST',body:JSON.stringify({
+    contact_id:contactId,
+    type:document.getElementById('m-type')?.value||'give',
+    title,
+    amount:parseFloat(document.getElementById('m-amount')?.value)||null,
+    description:document.getElementById('m-desc')?.value||'',
+    event_date:document.getElementById('m-date')?.value
+  })});
+  closeModal();showToast('✅ 人情往来已记录');renderPage('relation');
+}
+
+// ==================== AGENT ====================
+function renderAgent(app){
+  app.innerHTML=`<div class="header"><div class="header-left"><h1>🤖 AI 协作</h1><div class="date">Agent 管理面板</div></div></div>
+    <div class="chart-row">
+      <div class="panel"><h3>🤖 已配置 Agent</h3>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="note-card"><h4>📊 晨间简报 Agent</h4><div class="excerpt">每天7:00自动生成今日焦点和AI洞察</div><div class="note-meta"><span>状态：运行中</span><span>触发：定时</span></div></div>
+          <div class="note-card"><h4>💰 财务管家 Agent</h4><div class="excerpt">CSV导入自动分类 + 每月1号提醒导入账单</div><div class="note-meta"><span>状态：运行中</span><span>触发：事件+定时</span></div></div>
+          <div class="note-card"><h4>❤️ 健康顾问 Agent</h4><div class="excerpt">Apple Watch数据同步 + 体检报告AI分析</div><div class="note-meta"><span>状态：待配置</span><span>触发：事件</span></div></div>
+          <div class="note-card"><h4>🌱 成长导师 Agent</h4><div class="excerpt">Obsidian笔记同步 + 自动提取洞见</div><div class="note-meta"><span>状态：待配置</span><span>触发：Webhook</span></div></div>
+          <div class="note-card"><h4>📝 复盘教练 Agent</h4><div class="excerpt">每周日20:00自动生成周报复盘</div><div class="note-meta"><span>状态：运行中</span><span>触发：定时</span></div></div>
+        </div>
+      </div>
+      <div class="panel"><h3>📋 Prompt 库</h3>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="note-card"><h4>📝 周报生成</h4><div class="excerpt">根据本周目标、笔记、财务数据生成结构化周报</div><div class="note-meta"><span>使用 12 次</span><span>⭐ 4.5</span></div></div>
+          <div class="note-card"><h4>💡 洞见提取</h4><div class="excerpt">从笔记中自动提取关键洞见并关联到知识领域</div><div class="note-meta"><span>使用 28 次</span><span>⭐ 4.8</span></div></div>
+          <div class="note-card"><h4>🏷️ 自动分类</h4><div class="excerpt">CSV交易记录自动归类到财务分类</div><div class="note-meta"><span>使用 8 次</span><span>⭐ 4.2</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:18px"><h3>🔌 MCP Server</h3><div class="empty">MCP Server 管理面板建设中，将支持接入外部工具和服务。</div></div>`;
+}
+
+// ==================== INIT ====================
+// (auto-login check runs on page load via IIFE above)
+</script>
+</body>
+</html>
