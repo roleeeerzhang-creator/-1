@@ -161,6 +161,11 @@ body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;backgr
     <button id="login-btn" onclick="doLogin()" style="width:100%;padding:12px;background:#ec4899;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:.2s">登 录</button>
     <p id="login-error" style="font-size:12px;color:#ef4444;margin-top:12px;display:none"></p>
     <p style="font-size:11px;color:#94a3b8;margin-top:20px">首次使用默认账号：vincent / admin123</p>
+    <p style="font-size:11px;color:#cbd5e1;margin-top:6px;cursor:pointer" onclick="document.getElementById('api-config').style.display='block'">⚙️ 配置后端地址</p>
+    <div id="api-config" style="display:none;margin-top:8px">
+      <input id="api-url-input" type="text" placeholder="后端API地址，如 https://xxx.up.railway.app/api/v1" style="width:100%;padding:8px 12px;border:1px solid #fce7f3;border-radius:8px;font-size:12px;margin-bottom:8px;outline:none;font-family:inherit">
+      <button onclick="saveApiUrl()" style="padding:6px 16px;background:#ec4899;color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">保存</button>
+    </div>
   </div>
 </div>
 
@@ -194,7 +199,18 @@ body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;backgr
 </div><!-- end main-app -->
 
 <script>
-const API='__RAILWAY_API_URL__/api/v1';
+// 自动检测 API 地址：本地开发用相对路径，部署后用环境变量
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '/api/v1'
+  : (window.__RAILWAY_URL__ || '/api/v1');
+// 如果部署到 Vercel，需要在部署时设置这个值
+const API = (() => {
+  // 尝试从 localStorage 读取用户配置的后端地址
+  const saved = localStorage.getItem('pos_api_url');
+  if (saved) return saved;
+  // 默认使用同域
+  return '/api/v1';
+})();
 let token='',charts={};
 
 // PWA Service Worker
@@ -240,13 +256,29 @@ async function doLogin(){
         renderPage('dashboard');
         return;
       }
-    }catch(e){}
+    }catch(e){console.log('Auto-login failed, showing login page');}
+    // token 无效，清除
+    localStorage.removeItem('pos_token');
+    localStorage.removeItem('pos_user');
+    token='';
   }
+  // 显示登录页
   document.getElementById('login-page').style.display='flex';
   document.getElementById('main-app').style.display='none';
   // 回车登录
   document.getElementById('login-password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+  // 预填已保存的 API 地址
+  const savedApi=localStorage.getItem('pos_api_url');
+  if(savedApi) document.getElementById('api-url-input').value=savedApi;
 })();
+
+function saveApiUrl(){
+  const url=document.getElementById('api-url-input').value.trim();
+  if(url){
+    localStorage.setItem('pos_api_url',url);
+    location.reload();
+  }
+}
 
 async function api(path,opt={}){
   if(!token){const saved=localStorage.getItem('pos_token');if(saved)token=saved;}
