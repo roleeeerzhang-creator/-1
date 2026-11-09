@@ -145,6 +145,57 @@ body::before {
 .cloud-status.ok { color: var(--content); }
 .cloud-status.err { color: var(--ecommerce); }
 
+/* 同步状态指示 */
+.sync-indicator {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-mute);
+  padding: 6px 12px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 9px;
+  font-family: "JetBrains Mono", monospace;
+}
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--content);
+  box-shadow: 0 0 6px var(--content);
+  animation: pulse 2s infinite;
+}
+.sync-dot.offline { background: var(--text-mute); box-shadow: none; animation: none; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* 重要节点开关 */
+.important-toggle {
+  display: flex !important; align-items: center; gap: 8px;
+  cursor: pointer; color: var(--text);
+}
+.important-toggle input { width: auto; }
+
+/* 钉钉配置区标题 */
+.cloud-section-title {
+  font-size: 13px; font-weight: 700; color: var(--sable-soft);
+  margin: 18px 0 12px; padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+/* Toast 提示 */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--text); color: var(--bg);
+  padding: 10px 20px; border-radius: 10px; font-size: 13px;
+  box-shadow: var(--shadow); opacity: 0; transition: all 0.3s;
+  z-index: 200; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* 重要节点标记 */
+.important-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; color: var(--ecommerce); font-weight: 700;
+  margin-left: 6px;
+  background: rgba(224,71,80,0.10);
+  padding: 1px 6px; border-radius: 4px;
+}
+.task-by { color: var(--sable-soft); font-weight: 500; }
+
 /* ===== Nav strip ===== */
 .nav-strip {
   display: flex; align-items: center; justify-content: center;
@@ -292,6 +343,17 @@ body::before {
 .chip-content { background: linear-gradient(90deg, var(--content), #3aa87d); }
 .chip-festival { background: linear-gradient(90deg, var(--festival), #487fcc); }
 .chip-reminder { background: linear-gradient(90deg, var(--reminder), #945fc7); }
+
+/* 日历格内重要节点标记 */
+.chip .imp-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.5);
+  margin-right: 4px;
+  vertical-align: middle;
+}
 
 .day-more {
   font-size: 10px; color: var(--text-mute); padding: 0 6px;

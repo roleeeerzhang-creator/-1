@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=2027b">
+<link rel="stylesheet" href="styles.css?v=2027c">
 </head>
 <body>
 <div class="app">
@@ -24,6 +24,7 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <span class="sync-indicator" id="syncIndicator"><span class="sync-dot offline"></span>本地模式</span>
       <button class="add-node-btn" id="globalAddBtn" title="手动添加节点">＋ 添加节点</button>
       <button class="cloud-btn" id="cloudBtn" title="云端同步设置">☁ 云同步</button>
       <div class="view-toggle">
@@ -122,6 +123,12 @@
         </select>
       </div>
       <div class="form-group">
+        <label class="important-toggle">
+          <input type="checkbox" id="taskImportant">
+          <span>🔴 标记为重要节点（变更时通知钉钉群）</span>
+        </label>
+      </div>
+      <div class="form-group">
         <label>备注</label>
         <textarea id="taskNote" rows="3" placeholder="内容主题、达人、预算、投放渠道…"></textarea>
       </div>
@@ -173,6 +180,27 @@ create policy "public access" on calendar_events
       <label>anon public key</label>
       <input type="text" id="supabaseKey" placeholder="eyJhbGciOi...">
     </div>
+    <div class="cloud-section-title">🔔 钉钉通知配置（团队共享，填一次全员生效）</div>
+    <div class="form-group">
+      <label>钉钉机器人 Webhook</label>
+      <input type="text" id="dingWebhook" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>加签 Secret（可选）</label>
+        <input type="text" id="dingSecret" placeholder="SEC...">
+      </div>
+      <div class="form-group">
+        <label>@ 手机号（逗号分隔，可选）</label>
+        <input type="text" id="dingMobiles" placeholder="138xxxx,139xxxx">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="important-toggle">
+        <input type="checkbox" id="dingAtAll">
+        <span>通知时 @所有人</span>
+      </label>
+    </div>
     <div class="cloud-status" id="cloudStatus"></div>
     <div class="modal-actions">
       <button type="button" class="btn-ghost" id="cloudDisconnect" style="margin-right:auto">断开同步</button>
@@ -181,6 +209,6 @@ create policy "public access" on calendar_events
     </div>
   </div>
 </div>
-<script src="app.js?v=2027b"></script>
+<script src="app.js?v=2027c"></script>
 </body>
 </html>

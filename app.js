@@ -428,6 +428,8 @@ let editingTaskId=null;
 
 const STORAGE_KEY='sable_2027_events';
 const CLOUD_KEY='sable_cloud_config';
+const USER_KEY='sable_user_name';
+const NOTIFY_KEY='sable_notified';
 
 function loadEvents(){
   try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');}catch(e){return{};}
@@ -435,9 +437,22 @@ function loadEvents(){
 function saveEvents(events){localStorage.setItem(STORAGE_KEY,JSON.stringify(events));}
 let userEvents=loadEvents();
 
+// 操作人名称（首次使用时设置）
+let currentUser=localStorage.getItem(USER_KEY)||'';
+
+// 已发送验收提醒的节点 id 集合（避免重复提醒）
+let notifiedAcceptance=new Set(JSON.parse(localStorage.getItem(NOTIFY_KEY)||'[]'));
+function saveNotified(){localStorage.setItem(NOTIFY_KEY,JSON.stringify([...notifiedAcceptance]));}
+
+// 上次同步的节点指纹，用于检测远程变更
+let lastSyncHash='';
+
 /* ---------- 云同步 (Supabase) ---------- */
 let cloudConfig=null;
 try{cloudConfig=JSON.parse(localStorage.getItem(CLOUD_KEY)||'null');}catch(e){cloudConfig=null;}
+
+// 钉钉配置（从 Supabase app_config 表加载，团队共享）
+let dingtalkConfig={webhook:'',secret:'',atAll:false,atMobiles:''};
 
 function isCloud(){return cloudConfig&&cloudConfig.url&&cloudConfig.key;}
 
@@ -453,6 +468,46 @@ async function cloudFetch(path,opts={}){
   return res.status===204?null:res.json();
 }
 
+// 加载团队共享配置（钉钉 webhook 等）
+async function loadAppConfig(){
+  if(!isCloud())return;
+  try{
+    const rows=await cloudFetch('/app_config?select=*');
+    if(rows&&rows.length){
+      const cfg=rows[0];
+      dingtalkConfig={
+        webhook:cfg.dingtalk_webhook||'',
+        secret:cfg.dingtalk_secret||'',
+        atAll:!!cfg.dingtalk_at_all,
+        atMobiles:cfg.dingtalk_at_mobiles||''
+      };
+    }
+  }catch(e){/* 配置表可能不存在，忽略 */}
+}
+
+// 保存团队共享配置到 Supabase
+async function saveAppConfig(){
+  if(!isCloud())return;
+  const webhook=document.getElementById('dingWebhook').value.trim();
+  const secret=document.getElementById('dingSecret').value.trim();
+  const atMobiles=document.getElementById('dingMobiles').value.trim();
+  const atAll=document.getElementById('dingAtAll').checked;
+  dingtalkConfig={webhook,secret,atAll,atMobiles};
+  try{
+    // 先尝试查询是否已有配置
+    const existing=await cloudFetch('/app_config?select=id&limit=1');
+    const body={dingtalk_webhook:webhook||null,dingtalk_secret:secret||null,dingtalk_at_all:atAll,dingtalk_at_mobiles:atMobiles||null};
+    if(existing&&existing.length){
+      await cloudFetch(`/app_config?id=eq.${existing[0].id}`,{method:'PATCH',body:JSON.stringify(body)});
+    }else{
+      await cloudFetch('/app_config',{method:'POST',body:JSON.stringify(body)});
+    }
+  }catch(e){
+    console.warn('钉钉配置保存失败（需先创建 app_config 表）:',e);
+    showCloudStatus('钉钉配置保存失败：请先在 Supabase 创建 app_config 表',true);
+  }
+}
+
 async function loadCloudEvents(){
   if(!isCloud())return;
   try{
@@ -461,20 +516,33 @@ async function loadCloudEvents(){
     rows.forEach(r=>{
       const k=r.date;
       if(!map[k])map[k]=[];
-      map[k].push({id:r.id,date:r.date,type:r.type,title:r.title,note:r.note,time:r.time,remind:r.remind,done:!!r.done});
+      map[k].push({
+        id:r.id,date:r.date,type:r.type,title:r.title,note:r.note,
+        time:r.time,remind:r.remind,done:!!r.done,
+        important:!!r.important,created_by:r.created_by||''
+      });
     });
+    const newHash=JSON.stringify(map);
+    const changed=newHash!==lastSyncHash;
     userEvents=map;
     saveEvents(map);
+    lastSyncHash=newHash;
+    return changed;
   }catch(e){
     console.error('云同步读取失败:',e);
     showCloudStatus('云端读取失败：'+e.message,true);
+    return false;
   }
 }
 
 async function saveCloudEvent(event){
   if(!isCloud())return event.id;
   try{
-    const body={date:event.date,type:event.type,title:event.title,note:event.note||null,time:event.time||null,remind:event.remind||'none',done:!!event.done};
+    const body={
+      date:event.date,type:event.type,title:event.title,note:event.note||null,
+      time:event.time||null,remind:event.remind||'none',done:!!event.done,
+      important:!!event.important,created_by:event.created_by||currentUser||'匿名'
+    };
     if(event.id&&!String(event.id).startsWith('local_')){
       const [r]=await cloudFetch(`/calendar_events?id=eq.${event.id}`,{method:'PATCH',body:JSON.stringify(body)});
       return r.id;
@@ -493,6 +561,165 @@ async function deleteCloudEvent(id){
   if(!isCloud()||String(id).startsWith('local_'))return;
   try{await cloudFetch(`/calendar_events?id=eq.${id}`,{method:'DELETE'});}
   catch(e){console.error('云端删除失败:',e);}
+}
+
+/* ---------- 钉钉通知 ---------- */
+function dingtalkSign(secret){
+  if(!secret)return '';
+  const ts=Date.now();
+  const stringToSign=`${ts}\n${secret}`;
+  // 钉钉签名需要 HmacSHA256 + Base64 + URL encode，前端用 Web Crypto
+  return new Promise(resolve=>{
+    const enc=new TextEncoder().encode(stringToSign);
+    const keyEnc=new TextEncoder().encode(secret);
+    crypto.subtle.importKey('raw',keyEnc,{name:'HMAC',hash:'SHA-256'},false,['sign'])
+      .then(key=>crypto.subtle.sign('HMAC',key,enc))
+      .then(sig=>{
+        const b64=btoa(String.fromCharCode(...new Uint8Array(sig)));
+        resolve(`&timestamp=${ts}&sign=${encodeURIComponent(b64)}`);
+      })
+      .catch(()=>resolve(''));
+  });
+}
+
+async function sendDingTalk(action,event){
+  if(!dingtalkConfig.webhook)return;
+  const typeLabel={ecommerce:'电商大促',marketing:'品牌营销',content:'小红书内容',festival:'节日节点',reminder:'任务提醒'}[event.type]||event.type;
+  const actionLabel={create:'🆕 新增',update:'✏️ 修改',delete:'🗑️ 删除'}[action]||action;
+  const operator=currentUser||'匿名';
+  const calendarUrl='https://roleeeerzhang-creator.github.io/-1/';
+  const text=`### ${actionLabel}重要节点 · ${event.title}\n\n`+
+    `> **操作人**：${operator}\n`+
+    `> **类型**：${typeLabel}${event.important?' · 🔴重要':''}\n`+
+    `> **日期**：${event.date}${event.time?' '+event.time:''}\n`+
+    `${event.remind&&event.remind!=='none'?`> **提醒**：${remindLabel(event.remind)}\n`:''}`+
+    `${event.note?`\n**备注**：${event.note}\n`:''}`+
+    `\n[📅 打开营销日历](${calendarUrl})`;
+
+  const at={isAtAll:!!dingtalkConfig.atAll};
+  if(dingtalkConfig.atMobiles){
+    at.atMobiles=dingtalkConfig.atMobiles.split(/[,，\s]+/).filter(Boolean);
+  }
+  const payload={msgtype:'markdown',markdown:{title:`${actionLabel} ${event.title}`,text},at};
+
+  try{
+    const sign=dingtalkConfig.secret?await dingtalkSign(dingtalkConfig.secret):'';
+    const res=await fetch(dingtalkConfig.webhook+sign,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await res.json();
+    if(data.errcode!==0)console.warn('钉钉通知失败:',data);
+  }catch(e){console.warn('钉钉通知异常:',e);}
+}
+
+// 发送验收提醒
+async function sendAcceptanceReminder(event){
+  if(!dingtalkConfig.webhook)return;
+  if(notifiedAcceptance.has(event.id))return;
+  const typeLabel={ecommerce:'电商大促',marketing:'品牌营销',content:'小红书内容',festival:'节日节点',reminder:'任务提醒'}[event.type]||event.type;
+  const calendarUrl='https://roleeeerzhang-creator.github.io/-1/';
+  const text=`### 📋 验收提醒 · ${event.title}\n\n`+
+    `> **类型**：${typeLabel}${event.important?' · 🔴重要':''}\n`+
+    `> **日期**：${event.date}${event.time?' '+event.time:''}\n`+
+    `> **负责人**：${event.created_by||'未指定'}\n`+
+    `${event.note?`\n**内容**：${event.note}\n`:''}`+
+    `\n请相关同事点击下方链接完成验收并反馈进度 👇\n`+
+    `[📅 打开营销日历](${calendarUrl})`;
+  const at={isAtAll:false};
+  if(dingtalkConfig.atMobiles){at.atMobiles=dingtalkConfig.atMobiles.split(/[,，\s]+/).filter(Boolean);}
+  const payload={msgtype:'markdown',markdown:{title:`验收提醒：${event.title}`,text},at};
+  try{
+    const sign=dingtalkConfig.secret?await dingtalkSign(dingtalkConfig.secret):'';
+    await fetch(dingtalkConfig.webhook+sign,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    notifiedAcceptance.add(event.id);
+    saveNotified();
+  }catch(e){console.warn('验收提醒发送失败:',e);}
+}
+
+// 检查到期的验收提醒
+function checkAcceptanceReminders(){
+  if(!isCloud()||!dingtalkConfig.webhook)return;
+  const now=new Date();
+  const today=dateKey(now.getFullYear(),now.getMonth()+1,now.getDate());
+  for(const k in userEvents){
+    userEvents[k].forEach(ev=>{
+      if(ev.done)return;
+      if(!ev.remind||ev.remind==='none')return;
+      // 提前1天或当天发送验收提醒
+      const evDate=new Date(ev.date);
+      const diffDays=Math.ceil((evDate-now)/(1000*60*60*24));
+      if(diffDays<=1&&diffDays>=-7){
+        sendAcceptanceReminder(ev);
+      }
+    });
+  }
+}
+
+/* ---------- 实时同步（轮询 + Realtime） ---------- */
+let pollTimer=null;
+let realtimeSocket=null;
+
+async function syncRemote(){
+  if(!isCloud())return;
+  const changed=await loadCloudEvents();
+  updateSyncIndicator();
+  if(changed){
+    renderCalendar();
+    if(selectedDate)renderDetail(selectedDate);
+    showToast('🔄 检测到节点更新，已同步');
+    checkAcceptanceReminders();
+  }
+}
+
+function startSync(){
+  if(!isCloud())return;
+  // 轮询兜底（每 15 秒）
+  if(pollTimer)clearInterval(pollTimer);
+  pollTimer=setInterval(syncRemote,15000);
+  // 尝试 Supabase Realtime
+  try{
+    const wsUrl=`${cloudConfig.url.replace('https','wss')}/realtime/v1?apikey=${cloudConfig.key}`;
+    realtimeSocket=new WebSocket(wsUrl);
+    realtimeSocket.onopen=()=>{
+      realtimeSocket.send(JSON.stringify({
+        event:'phx_join',
+        topic:`realtime:public:calendar_events`,
+        payload:{},
+        ref:0
+      }));
+    };
+    realtimeSocket.onmessage=(e)=>{
+      try{
+        const msg=JSON.parse(e.data);
+        if(msg.event==='phx_reply'||msg.event==='postgres_changes'){
+          syncRemote();
+        }
+      }catch(err){}
+    };
+  }catch(e){/* realtime 不可用时依赖轮询 */}
+}
+
+function updateSyncIndicator(){
+  const el=document.getElementById('syncIndicator');
+  if(!el)return;
+  const now=new Date();
+  const t=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  el.innerHTML=isCloud()?`<span class="sync-dot"></span>已同步 ${t}`:`<span class="sync-dot offline"></span>本地模式`;
+}
+
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='toast';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;
+  t.className='toast show';
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.classList.remove('show'),2500);
 }
 
 function showCloudStatus(msg,isErr){
@@ -580,7 +807,7 @@ function createDayCell(y,m,d,otherMonth,todayKey){
       <span class="day-lunar">${lunarLabel}</span>
     </div>
     <div class="day-chips">
-      ${allItems.slice(0,3).map(it=>`<span class="chip chip-${it.type}">${it.title}</span>`).join('')}
+      ${allItems.slice(0,3).map(it=>`<span class="chip chip-${it.type}">${it.important?'<i class="imp-dot"></i>':''}${it.title}</span>`).join('')}
       ${allItems.length>3?`<span class="day-more">+${allItems.length-3} 更多</span>`:''}
     </div>
     <div class="day-badges">
@@ -655,11 +882,12 @@ function renderDetail(key){
       html+=`<div class="task-item ${t.done?'done':''}" data-id="${t.id}">
         <div class="task-check" data-id="${t.id}"></div>
         <div class="task-body">
-          <div class="task-title">${t.title}</div>
+          <div class="task-title">${t.title}${t.important?'<span class="important-badge">🔴重要</span>':''}</div>
           <div class="task-meta">
             ${t.time?`<span>🕐 ${t.time}</span>`:''}
             <span><i class="dot dot-${t.type}" style="width:7px;height:7px"></i> ${typeLabel(t.type)}</span>
             ${t.remind&&t.remind!=='none'?`<span>🔔 ${remindLabel(t.remind)}</span>`:''}
+            ${t.created_by?`<span class="task-by">👤 ${t.created_by}</span>`:''}
           </div>
           ${t.note?`<div class="task-note">${t.note}</div>`:''}
         </div>
@@ -700,6 +928,7 @@ function openModal(key,existingTask){
   document.getElementById('taskTime').value=existingTask?existingTask.time||'':'';
   document.getElementById('taskNote').value=existingTask?existingTask.note||'':'';
   document.getElementById('taskRemind').value=existingTask?existingTask.remind||'none':'none';
+  document.getElementById('taskImportant').checked=existingTask?!!existingTask.important:false;
   setActiveType(existingTask?existingTask.type:'reminder');
   document.getElementById('taskModal').classList.add('show');
   setTimeout(()=>document.getElementById('taskTitle').focus(),100);
@@ -722,6 +951,8 @@ async function saveTask(e){
   const type=document.getElementById('taskModal').dataset.type;
   const title=document.getElementById('taskTitle').value.trim();
   if(!title)return;
+  const important=document.getElementById('taskImportant').checked;
+  const action=editingTaskId?'update':'create';
   const event={
     id:editingTaskId||('local_'+Date.now()),
     date,
@@ -730,6 +961,8 @@ async function saveTask(e){
     time:document.getElementById('taskTime').value,
     note:document.getElementById('taskNote').value.trim(),
     remind:document.getElementById('taskRemind').value,
+    important,
+    created_by:currentUser||'匿名',
     done:false
   };
 
@@ -761,10 +994,16 @@ async function saveTask(e){
   currentMonth=parseInt(date.split('-')[1])-1;
   renderCalendar();
   renderDetail(date);
+
+  // 重要节点变更 → 钉钉通知
+  if(important&&isCloud()){
+    sendDingTalk(action,event);
+  }
 }
 
 async function deleteTask(key,id){
   if(!confirm('确定删除该节点？'))return;
+  const ev=(userEvents[key]||[]).find(t=>t.id===id);
   if(isCloud())await deleteCloudEvent(id);
   for(const k in userEvents){
     userEvents[k]=userEvents[k].filter(t=>t.id!==id);
@@ -773,6 +1012,10 @@ async function deleteTask(key,id){
   saveEvents(userEvents);
   renderCalendar();
   if(selectedDate)renderDetail(selectedDate);
+  // 删除重要节点 → 钉钉通知
+  if(ev&&ev.important&&isCloud()){
+    sendDingTalk('delete',ev);
+  }
 }
 
 async function toggleTask(key,id){
@@ -884,6 +1127,10 @@ function updateCloudBtn(){
 function openCloudModal(){
   document.getElementById('supabaseUrl').value=cloudConfig?.url||'';
   document.getElementById('supabaseKey').value=cloudConfig?.key||'';
+  document.getElementById('dingWebhook').value=dingtalkConfig.webhook||'';
+  document.getElementById('dingSecret').value=dingtalkConfig.secret||'';
+  document.getElementById('dingMobiles').value=dingtalkConfig.atMobiles||'';
+  document.getElementById('dingAtAll').checked=!!dingtalkConfig.atAll;
   document.getElementById('cloudStatus').textContent='';
   document.getElementById('cloudModal').classList.add('show');
 }
@@ -903,10 +1150,15 @@ document.getElementById('cloudSave').addEventListener('click',async()=>{
   localStorage.setItem(CLOUD_KEY,JSON.stringify(cloudConfig));
   status.textContent='正在同步云端数据…';status.className='cloud-status ok';
   await loadCloudEvents();
-  if(!status.textContent.startsWith('云端读取失败')){
-    status.textContent='✓ 同步成功！团队成员将共享同一份节点数据';
+  await saveAppConfig();
+  await loadAppConfig();
+  if(!status.textContent.startsWith('云端读取失败')&&!status.textContent.startsWith('钉钉配置保存失败')){
+    status.textContent='✓ 同步成功！团队共享节点数据'+(dingtalkConfig.webhook?'，钉钉通知已启用':'');
   }
   updateCloudBtn();
+  startSync();
+  updateSyncIndicator();
+  checkAcceptanceReminders();
   renderCalendar();
   if(selectedDate)renderDetail(selectedDate);
 });
@@ -915,10 +1167,23 @@ document.getElementById('cloudDisconnect').addEventListener('click',()=>{
   if(!confirm('确定断开云端同步？本地数据将保留。'))return;
   cloudConfig=null;
   localStorage.removeItem(CLOUD_KEY);
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  if(realtimeSocket){realtimeSocket.close();realtimeSocket=null;}
   updateCloudBtn();
+  updateSyncIndicator();
   document.getElementById('cloudStatus').textContent='已断开云端同步';
   document.getElementById('cloudStatus').className='cloud-status';
 });
+
+// 设置操作人名称
+function promptUserName(){
+  if(currentUser)return;
+  const name=prompt('请输入你的名字（用于标记节点操作人，同事可在钉钉通知中看到）：');
+  if(name&&name.trim()){
+    currentUser=name.trim();
+    localStorage.setItem(USER_KEY,currentUser);
+  }
+}
 
 /* ---------- 12. 初始化 ---------- */
 (async function init(){
@@ -931,8 +1196,14 @@ document.getElementById('cloudDisconnect').addEventListener('click',()=>{
     currentMonth=0;
   }
   updateCloudBtn();
+  updateSyncIndicator();
   if(isCloud()){
     await loadCloudEvents();
+    await loadAppConfig();
+    startSync();
+    checkAcceptanceReminders();
   }
   renderCalendar();
+  // 延迟提示输入名字（避免阻塞首屏）
+  setTimeout(promptUserName,800);
 })();
