@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>黑貂 SABLE · 2027 营销日历</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=2027b">
+</head>
+<body>
+<div class="app">
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <h1>黑貂 <span>SABLE</span></h1>
+        <p>2027 营销与内容投放日历</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="add-node-btn" id="globalAddBtn" title="手动添加节点">＋ 添加节点</button>
+      <button class="cloud-btn" id="cloudBtn" title="云端同步设置">☁ 云同步</button>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="month">月历</button>
+        <button class="view-btn" data-view="timeline">全年时间线</button>
+      </div>
+      <button class="today-btn" id="todayBtn">回到今日</button>
+    </div>
+  </header>
+
+  <!-- Month Navigator -->
+  <div class="nav-strip">
+    <button class="nav-arrow" id="prevMonth">‹</button>
+    <div class="nav-title">
+      <span class="nav-year" id="navYear">2027</span>
+      <span class="nav-month" id="navMonth">一月</span>
+      <span class="nav-lunar-year" id="navLunarYear">丁未年 · 羊</span>
+    </div>
+    <button class="nav-arrow" id="nextMonth">›</button>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span class="legend-item"><i class="dot dot-ecommerce"></i>电商大促</span>
+    <span class="legend-item"><i class="dot dot-marketing"></i>品牌营销</span>
+    <span class="legend-item"><i class="dot dot-content"></i>小红书内容</span>
+    <span class="legend-item"><i class="dot dot-festival"></i>节日节点</span>
+    <span class="legend-item"><i class="dot dot-reminder"></i>任务/提醒</span>
+    <span class="legend-item"><span class="holiday-dot legend-dot"></span>法定节假日</span>
+    <span class="legend-item"><span class="workday-tag">班</span>调休上班</span>
+  </div>
+
+  <main class="main">
+    <!-- Calendar View -->
+    <section class="calendar-view active" id="calendarView">
+      <div class="weekdays">
+        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </div>
+      <div class="days-grid" id="daysGrid"></div>
+    </section>
+
+    <!-- Timeline View -->
+    <section class="timeline-view" id="timelineView"></section>
+
+    <!-- Detail Panel -->
+    <aside class="detail-panel" id="detailPanel">
+      <div class="detail-empty" id="detailEmpty">
+        <div class="empty-icon">🗓️</div>
+        <h3>选择一个日期</h3>
+        <p>点击日历中的任意一天，查看并编辑当天的营销节点、内容计划与待办任务。</p>
+      </div>
+      <div class="detail-content" id="detailContent" style="display:none;"></div>
+    </aside>
+  </main>
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal" id="taskModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalTitle">新建任务</h3>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <form id="taskForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label>日期</label>
+          <input type="date" id="taskDate" required>
+        </div>
+        <div class="form-group">
+          <label>时间</label>
+          <input type="time" id="taskTime">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>标题</label>
+        <input type="text" id="taskTitle" placeholder="例如：618 预热笔记投放" required>
+      </div>
+      <div class="form-group">
+        <label>类型</label>
+        <div class="type-picker" id="typePicker">
+          <button type="button" class="type-chip active" data-type="reminder"><i class="dot dot-reminder"></i>任务提醒</button>
+          <button type="button" class="type-chip" data-type="ecommerce"><i class="dot dot-ecommerce"></i>电商大促</button>
+          <button type="button" class="type-chip" data-type="marketing"><i class="dot dot-marketing"></i>品牌营销</button>
+          <button type="button" class="type-chip" data-type="content"><i class="dot dot-content"></i>小红书内容</button>
+          <button type="button" class="type-chip" data-type="festival"><i class="dot dot-festival"></i>节日节点</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>提醒</label>
+        <select id="taskRemind">
+          <option value="none">不提醒</option>
+          <option value="on-time">准时提醒</option>
+          <option value="1day">提前1天</option>
+          <option value="3day">提前3天</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <textarea id="taskNote" rows="3" placeholder="内容主题、达人、预算、投放渠道…"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-ghost" id="cancelBtn">取消</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Cloud Sync Modal -->
+<div class="modal" id="cloudModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>云端同步设置</h3>
+      <button class="modal-close" id="cloudClose">×</button>
+    </div>
+    <div class="cloud-hint">
+      <p>配置 Supabase 后，所有手动添加的节点将存储在云端，团队成员共享同一份数据。</p>
+      <details>
+        <summary>如何获取 Supabase 配置？</summary>
+        <ol>
+          <li>前往 <b>supabase.com</b> 免费注册并创建一个 Project</li>
+          <li>在 Project Settings → API 中复制 <b>Project URL</b> 和 <b>anon public key</b></li>
+          <li>在 SQL Editor 中执行下方建表语句，然后回到此处填写并保存</li>
+        </ol>
+        <pre class="sql-block">create table if not exists calendar_events (
+  id uuid default gen_random_uuid() primary key,
+  date text not null,
+  type text not null,
+  title text not null,
+  note text,
+  time text,
+  remind text,
+  done boolean default false,
+  created_at timestamptz default now()
+);
+alter table calendar_events enable row level security;
+create policy "public access" on calendar_events
+  for all using (true) with check (true);</pre>
+      </details>
+    </div>
+    <div class="form-group">
+      <label>Supabase Project URL</label>
+      <input type="text" id="supabaseUrl" placeholder="https://xxxx.supabase.co">
+    </div>
+    <div class="form-group">
+      <label>anon public key</label>
+      <input type="text" id="supabaseKey" placeholder="eyJhbGciOi...">
+    </div>
+    <div class="cloud-status" id="cloudStatus"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-ghost" id="cloudDisconnect" style="margin-right:auto">断开同步</button>
+      <button type="button" class="btn-ghost" id="cloudCancel">取消</button>
+      <button type="button" class="btn-primary" id="cloudSave">保存并同步</button>
+    </div>
+  </div>
+</div>
+<script src="app.js?v=2027b"></script>
+</body>
+</html>
